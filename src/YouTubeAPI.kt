@@ -17,7 +17,7 @@ interface YouTubeAPI {
     fun getPlaylistItems(
         @Query("playlistId") playlistId: String,
         @Query("pageToken") pageToken: String  //point to the next page
-    ): Call<ResponseBody>
+    ): Call<PlaylistItems>
 }
 
 object RetrofitBuilder {
@@ -52,4 +52,17 @@ object RetrofitBuilder {
         httpClient.addInterceptor(logging)
     }
 }
+
+
+/**  models **/
+data class PlaylistItems(
+    val nextPageToken: String,
+    val items: List<Item>
+)
+
+data class Item(val snippet: Snippet)
+
+data class Snippet(val resourceId: ResourceId)
+
+data class ResourceId(val videoId: String)
 
