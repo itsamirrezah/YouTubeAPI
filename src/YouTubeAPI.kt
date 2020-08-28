@@ -3,7 +3,6 @@ package com.itsamirrezah.youtubeapi
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.Response
-import okhttp3.ResponseBody
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Call
 import retrofit2.Retrofit
@@ -31,7 +30,7 @@ object RetrofitBuilder {
         httpClient.interceptors().add(object : Interceptor {
             override fun intercept(chain: Interceptor.Chain): Response {
                 var request = chain.request()
-                val httpUrl = request.url.newBuilder().addQueryParameter("key", "GOOGLE_API_KEY").build()
+                val httpUrl = request.url.newBuilder().addQueryParameter("key", GOOGLE_API_KEY).build()
                 request = request.newBuilder().url(httpUrl).build()
                 return chain.proceed(request)
             }
@@ -53,12 +52,31 @@ object RetrofitBuilder {
     }
 }
 
+fun playlistItems(playlistId: String?): PlaylistItems {
+
+    //initial values
+    var nextPageToken: String? = ""
+    val playlistItems = mutableListOf<Item>()
+
+    //retrieve items from youtube api
+    while (nextPageToken != null) {     // while additional result are available, retrieve them
+        //synchronous call
+        val responseBody = RetrofitBuilder.youtube.getPlaylistItems(playlistId!!, nextPageToken).execute()
+            .body()!!
+        playlistItems.addAll(responseBody.items)
+        //point to the next page
+        nextPageToken = responseBody.nextPageToken
+    }
+    return PlaylistItems(playlistItems)
+}
 
 /**  models **/
 data class PlaylistItems(
     val nextPageToken: String,
     val items: List<Item>
-)
+) {
+    constructor(items: List<Item>) : this("", items)
+}
 
 data class Item(val snippet: Snippet)
 
