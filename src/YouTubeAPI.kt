@@ -2,9 +2,8 @@ package com.itsamirrezah.youtubeapi
 
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
-import okhttp3.Response
 import okhttp3.logging.HttpLoggingInterceptor
-import retrofit2.Call
+import retrofit2.Response
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.GET
@@ -13,10 +12,10 @@ import retrofit2.http.Query
 interface YouTubeAPI {
 
     @GET("/youtube/v3/playlistItems?part=snippet&maxResults=50")
-    fun getPlaylistItems(
+    suspend fun getPlaylistItems(
         @Query("playlistId") playlistId: String,
         @Query("pageToken") pageToken: String  //point to the next page
-    ): Call<PlaylistItems>
+    ): Response<PlaylistItems>
 }
 
 object RetrofitBuilder {
@@ -28,7 +27,7 @@ object RetrofitBuilder {
         loggingInterceptor()
         //add google api key to all requests
         httpClient.interceptors().add(object : Interceptor {
-            override fun intercept(chain: Interceptor.Chain): Response {
+            override fun intercept(chain: Interceptor.Chain): okhttp3.Response {
                 var request = chain.request()
                 val httpUrl = request.url.newBuilder().addQueryParameter("key", GOOGLE_API_KEY).build()
                 request = request.newBuilder().url(httpUrl).build()
@@ -52,7 +51,7 @@ object RetrofitBuilder {
     }
 }
 
-fun playlistItems(playlistId: String?): PlaylistItems {
+suspend fun playlistItems(playlistId: String?): PlaylistItems {
 
     //initial values
     var nextPageToken: String? = ""
@@ -61,8 +60,7 @@ fun playlistItems(playlistId: String?): PlaylistItems {
     //retrieve items from youtube api
     while (nextPageToken != null) {     // while additional result are available, retrieve them
         //synchronous call
-        val responseBody = RetrofitBuilder.youtube.getPlaylistItems(playlistId!!, nextPageToken).execute()
-            .body()!!
+        val responseBody = RetrofitBuilder.youtube.getPlaylistItems(playlistId!!, nextPageToken).body()!!
         playlistItems.addAll(responseBody.items)
         //point to the next page
         nextPageToken = responseBody.nextPageToken
