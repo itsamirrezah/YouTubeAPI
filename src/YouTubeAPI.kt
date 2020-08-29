@@ -51,24 +51,37 @@ object RetrofitBuilder {
     }
 }
 
-suspend fun playlistItems(playlistId: String?): PlaylistItems {
+suspend fun playlistItems(playlistId: String?): List<Video> {
 
     //initial values
     var nextPageToken: String? = ""
-    val playlistItems = mutableListOf<Item>()
+    val videos = mutableListOf<Video>()
 
     //retrieve items from youtube api
     while (nextPageToken != null) {     // while additional result are available, retrieve them
         //synchronous call
         val responseBody = RetrofitBuilder.youtube.getPlaylistItems(playlistId!!, nextPageToken).body()!!
-        playlistItems.addAll(responseBody.items)
+        responseBody.items.map {
+            val data = it.snippet
+            videos.add(Video(data.title, data.channelTitle, YOUTUBE_W + data.resourceId.videoId, data.position))
+        }
         //point to the next page
         nextPageToken = responseBody.nextPageToken
     }
-    return PlaylistItems(playlistItems)
+    return videos
 }
 
+
 /**  models **/
+
+data class Video(
+    val title: String,
+    val channelTitle: String,
+    val url: String,
+    val position: Int
+)
+
+/** youtube models **/
 data class PlaylistItems(
     val nextPageToken: String,
     val items: List<Item>
@@ -78,7 +91,12 @@ data class PlaylistItems(
 
 data class Item(val snippet: Snippet)
 
-data class Snippet(val resourceId: ResourceId)
+data class Snippet(
+    val title: String,
+    val channelTitle: String,
+    val position: Int,
+    val resourceId: ResourceId
+)
 
 data class ResourceId(val videoId: String)
 
