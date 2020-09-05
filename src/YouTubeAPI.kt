@@ -75,28 +75,50 @@ suspend fun playlistItems(playlistId: String?): List<Video> {
 /**  models **/
 
 data class Video(
+    val id: String,
     val title: String,
     val channelTitle: String,
     val url: String,
-    val position: Int
+    val duration: String,
+    val viewCount: String,
+    val likeCount: String,
+    val dislikeCount: String,
+    val favoriteCount: String,
+    val commentCount: String
 )
 
+
 /** youtube models **/
-data class PlaylistItems(
+data class ItemsResponse(
     val nextPageToken: String,
     val items: List<Item>
-) {
-    constructor(items: List<Item>) : this("", items)
-}
+)
 
-data class Item(val snippet: Snippet)
+data class Item(
+    val id: String,
+    val snippet: Snippet,
+    val contentDetails: ContentDetails,
+    val statistics: Statistics
+)
+
+data class ContentDetails(
+    val videoId: String,
+    val videoPublishedAt: String,
+    val duration: String,
+    val definition: String
+)
 
 data class Snippet(
     val title: String,
+    val description: String,
     val channelTitle: String,
-    val position: Int,
-    val resourceId: ResourceId
+    val tags: List<String>
 )
 
-data class ResourceId(val videoId: String)
-
+data class Statistics(
+    val viewCount: String,
+    val likeCount: String,
+    val dislikeCount: String,
+    val favoriteCount: String,
+    val commentCount: String
+)
