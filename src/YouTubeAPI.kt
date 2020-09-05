@@ -1,5 +1,7 @@
 package com.itsamirrezah.youtubeapi
 
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -11,11 +13,14 @@ import retrofit2.http.Query
 
 interface YouTubeAPI {
 
-    @GET("/youtube/v3/playlistItems?part=snippet&maxResults=50")
+    @GET("/youtube/v3/playlistItems?part=contentDetails&maxResults=50")
     suspend fun getPlaylistItems(
         @Query("playlistId") playlistId: String,
         @Query("pageToken") pageToken: String  //point to the next page
-    ): Response<PlaylistItems>
+    ): Response<ItemsResponse>
+
+    @GET("/youtube/v3/videos?part=snippet,contentDetails,statistics")
+    suspend fun getVideo(@Query("id") id: String): Response<ItemsResponse>
 }
 
 object RetrofitBuilder {
@@ -45,30 +50,47 @@ object RetrofitBuilder {
 
     private fun loggingInterceptor() {
         val logging = HttpLoggingInterceptor()
-        logging.setLevel(HttpLoggingInterceptor.Level.BODY)
-
+        logging.setLevel(HttpLoggingInterceptor.Level.HEADERS)
         httpClient.addInterceptor(logging)
     }
 }
 
 suspend fun playlistItems(playlistId: String?): List<Video> {
 
-    //initial values
-    var nextPageToken: String? = ""
-    val videos = mutableListOf<Video>()
+    return coroutineScope {
 
-    //retrieve items from youtube api
-    while (nextPageToken != null) {     // while additional result are available, retrieve them
-        //synchronous call
-        val responseBody = RetrofitBuilder.youtube.getPlaylistItems(playlistId!!, nextPageToken).body()!!
-        responseBody.items.map {
-            val data = it.snippet
-            videos.add(Video(data.title, data.channelTitle, YOUTUBE_W + data.resourceId.videoId, data.position))
+        //initial values
+        var nextPageToken: String? = ""
+        val videos = mutableListOf<Video>()
+        //retrieve items from youtube api
+        while (nextPageToken != null) {     // while additional result are available, retrieve them
+            //synchronous call
+            val responseBody = RetrofitBuilder.youtube.getPlaylistItems(playlistId!!, nextPageToken).body()!!
+            for (item in responseBody.items) {
+                launch {
+                    log("$item: sending request")
+                    val video = RetrofitBuilder.youtube.getVideo(item.contentDetails.videoId).body()!!.items.first()
+                    videos.add(
+                        Video(
+                            id= video.id,
+                            title = video.snippet.title,
+                            channelTitle = video.snippet.channelTitle,
+                            url = YOUTUBE_W + video.id,
+                            duration = video.contentDetails.duration,
+                            viewCount = video.statistics.viewCount,
+                            likeCount = video.statistics.likeCount,
+                            dislikeCount = video.statistics.dislikeCount,
+                            favoriteCount = video.statistics.favoriteCount,
+                            commentCount = video.statistics.commentCount
+                        )
+                    )
+                }
+            }
+            //point to the next page
+            nextPageToken = responseBody.nextPageToken
         }
-        //point to the next page
-        nextPageToken = responseBody.nextPageToken
+        videos
     }
-    return videos
 }
 
 
