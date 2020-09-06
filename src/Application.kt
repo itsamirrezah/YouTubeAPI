@@ -5,6 +5,8 @@ import io.ktor.features.*
 import io.ktor.gson.*
 import io.ktor.response.*
 import io.ktor.routing.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 fun main(args: Array<String>): Unit = io.ktor.server.netty.EngineMain.main(args)
 
@@ -23,8 +25,10 @@ fun Application.module(testing: Boolean = false) {
         get("/playlist") {
             //get playlist id from url
             val id = call.request.queryParameters["id"]
-            //return the result as json to user
-            call.respond(playlistItems(id))
+            withContext(Dispatchers.Default) {
+                //return the result as json to user
+                call.respond(playlistItems(id))
+            }
         }
 
         //TODO

@@ -21,6 +21,9 @@ interface YouTubeAPI {
 
     @GET("/youtube/v3/videos?part=snippet,contentDetails,statistics")
     suspend fun getVideo(@Query("id") id: String): Response<ItemsResponse>
+
+    @GET("/youtube/v3/commentThreads?part=snippet&order=relevance&maxResults=3")
+    suspend fun getComments(@Query("videoId") videoId: String): Response<ItemsResponse>
 }
 
 object RetrofitBuilder {
@@ -50,7 +53,7 @@ object RetrofitBuilder {
 
     private fun loggingInterceptor() {
         val logging = HttpLoggingInterceptor()
-        logging.setLevel(HttpLoggingInterceptor.Level.HEADERS)
+        logging.setLevel(HttpLoggingInterceptor.Level.BASIC)
         httpClient.addInterceptor(logging)
     }
 }
@@ -61,33 +64,53 @@ suspend fun playlistItems(playlistId: String?): List<Video> {
 
         //initial values
         var nextPageToken: String? = ""
+        var page = 0
         val videos = mutableListOf<Video>()
         //retrieve items from youtube api
         while (nextPageToken != null) {     // while additional result are available, retrieve them
             //synchronous call
             val responseBody = RetrofitBuilder.youtube.getPlaylistItems(playlistId!!, nextPageToken).body()!!
-            for (item in responseBody.items) {
+            for ((index, item) in responseBody.items.withIndex()) {
+                log("id: ${item.id.subSequence(item.id.length - 5, item.id.length)}")
+
+                videos.add(Video(item.contentDetails.videoId))
+                val idx = page * 50 + index
                 launch {
-                    log("$item: sending request")
-                    val video = RetrofitBuilder.youtube.getVideo(item.contentDetails.videoId).body()!!.items.first()
-                    videos.add(
-                        Video(
-                            id= video.id,
-                            title = video.snippet.title,
-                            channelTitle = video.snippet.channelTitle,
-                            url = YOUTUBE_W + video.id,
-                            duration = video.contentDetails.duration,
-                            viewCount = video.statistics.viewCount,
-                            likeCount = video.statistics.likeCount,
-                            dislikeCount = video.statistics.dislikeCount,
-                            favoriteCount = video.statistics.favoriteCount,
-                            commentCount = video.statistics.commentCount
+                    log("index: $index sending video request")
+                    val response = RetrofitBuilder.youtube.getVideo(item.contentDetails.videoId).body()!!.items.first()
+                    videos[idx].title = response.snippet.title
+                    videos[idx].channelTitle = response.snippet.channelTitle
+                    videos[idx].url = YOUTUBE_W + response.id
+                    videos[idx].duration = response.contentDetails.duration
+                    videos[idx].viewCount = response.statistics.viewCount
+                    videos[idx].likeCount = response.statistics.likeCount
+                    videos[idx].dislikeCount = response.statistics.dislikeCount
+                    videos[idx].favoriteCount = response.statistics.favoriteCount
+                    videos[idx].commentCount = response.statistics.commentCount
+                }
+
+                launch {
+                    log("index: $index sending comment request")
+                    val response = RetrofitBuilder.youtube.getComments(item.contentDetails.videoId).body()!!.items
+
+                    val comments = mutableListOf<Comment>()
+                    for (comment in response) {
+                        comments.add(
+                            Comment(
+                                authorName = comment.snippet.topLevelComment.snippet.authorDisplayName,
+                                authorProfileImageUrl = comment.snippet.topLevelComment.snippet.authorProfileImageUrl,
+                                text = comment.snippet.topLevelComment.snippet.textOriginal,
+                                likeCount = comment.snippet.topLevelComment.snippet.likeCount,
+                                publishedAt = comment.snippet.topLevelComment.snippet.publishedAt
+                            )
                         )
-                    )
+                    }
+                    videos[idx].topComment = comments
                 }
             }
             //point to the next page
             nextPageToken = responseBody.nextPageToken
+            page++
         }
         videos
     }
@@ -97,18 +120,29 @@ suspend fun playlistItems(playlistId: String?): List<Video> {
 /**  models **/
 
 data class Video(
-    val id: String,
-    val title: String,
-    val channelTitle: String,
-    val url: String,
-    val duration: String,
-    val viewCount: String,
-    val likeCount: String,
-    val dislikeCount: String,
-    val favoriteCount: String,
-    val commentCount: String
-)
+    val id: String
+) {
+    lateinit var title: String
+    lateinit var channelTitle: String
+    lateinit var url: String
+    lateinit var duration: String
+    lateinit var viewCount: String
+    lateinit var likeCount: String
+    lateinit var dislikeCount: String
+    lateinit var favoriteCount: String
+    lateinit var commentCount: String
+    lateinit var topComment: List<Comment>
+}
 
+data class Comment(
+    val authorName: String,
+    val authorProfileImageUrl: String,
+    val text: String,
+    val likeCount: String,
+    val publishedAt: String
+
+
+)
 
 /** youtube models **/
 data class ItemsResponse(
@@ -134,7 +168,18 @@ data class Snippet(
     val title: String,
     val description: String,
     val channelTitle: String,
-    val tags: List<String>
+    //CommentThreads
+    val totalReplyCount: String,
+    val topLevelComment: TopLevelComment,
+    val textOriginal: String,
+    val authorDisplayName: String,
+    val authorProfileImageUrl: String,
+    val likeCount: String,
+    val publishedAt: String
+)
+
+data class TopLevelComment(
+    val snippet: Snippet
 )
 
 data class Statistics(
