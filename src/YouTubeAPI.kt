@@ -58,7 +58,7 @@ object RetrofitBuilder {
     }
 }
 
-suspend fun playlistItems(playlistId: String?): List<Video> {
+suspend fun playlistItems(playlistId: String?, part: String): List<Video> {
 
     return coroutineScope {
 
@@ -75,38 +75,42 @@ suspend fun playlistItems(playlistId: String?): List<Video> {
 
                 videos.add(Video(item.contentDetails.videoId))
                 val idx = page * 50 + index
-                launch {
-                    log("index: $index sending video request")
-                    val response = RetrofitBuilder.youtube.getVideo(item.contentDetails.videoId).body()!!.items.first()
-                    videos[idx].title = response.snippet.title
-                    videos[idx].channelTitle = response.snippet.channelTitle
-                    videos[idx].url = YOUTUBE_W + response.id
-                    videos[idx].duration = response.contentDetails.duration
-                    videos[idx].viewCount = response.statistics.viewCount
-                    videos[idx].likeCount = response.statistics.likeCount
-                    videos[idx].dislikeCount = response.statistics.dislikeCount
-                    videos[idx].favoriteCount = response.statistics.favoriteCount
-                    videos[idx].commentCount = response.statistics.commentCount
-                }
 
-                launch {
-                    log("index: $index sending comment request")
-                    val response = RetrofitBuilder.youtube.getComments(item.contentDetails.videoId).body()!!.items
-
-                    val comments = mutableListOf<Comment>()
-                    for (comment in response) {
-                        comments.add(
-                            Comment(
-                                authorName = comment.snippet.topLevelComment.snippet.authorDisplayName,
-                                authorProfileImageUrl = comment.snippet.topLevelComment.snippet.authorProfileImageUrl,
-                                text = comment.snippet.topLevelComment.snippet.textOriginal,
-                                likeCount = comment.snippet.topLevelComment.snippet.likeCount,
-                                publishedAt = comment.snippet.topLevelComment.snippet.publishedAt
-                            )
-                        )
+                if (part.contains(VIDEO_ARG))
+                    launch {
+                        log("index: $index sending video request")
+                        val response =
+                            RetrofitBuilder.youtube.getVideo(item.contentDetails.videoId).body()!!.items.first()
+                        videos[idx].title = response.snippet.title
+                        videos[idx].channelTitle = response.snippet.channelTitle
+                        videos[idx].url = YOUTUBE_W + response.id
+                        videos[idx].duration = response.contentDetails.duration
+                        videos[idx].viewCount = response.statistics.viewCount
+                        videos[idx].likeCount = response.statistics.likeCount
+                        videos[idx].dislikeCount = response.statistics.dislikeCount
+                        videos[idx].favoriteCount = response.statistics.favoriteCount
+                        videos[idx].commentCount = response.statistics.commentCount
                     }
-                    videos[idx].topComment = comments
-                }
+
+                if (part.contains(COMMENT_ARG))
+                    launch {
+                        log("index: $index sending comment request")
+                        val response = RetrofitBuilder.youtube.getComments(item.contentDetails.videoId).body()!!.items
+
+                        val comments = mutableListOf<Comment>()
+                        for (comment in response) {
+                            comments.add(
+                                Comment(
+                                    authorName = comment.snippet.topLevelComment.snippet.authorDisplayName,
+                                    authorProfileImageUrl = comment.snippet.topLevelComment.snippet.authorProfileImageUrl,
+                                    text = comment.snippet.topLevelComment.snippet.textOriginal,
+                                    likeCount = comment.snippet.topLevelComment.snippet.likeCount,
+                                    publishedAt = comment.snippet.topLevelComment.snippet.publishedAt
+                                )
+                            )
+                        }
+                        videos[idx].topComment = comments
+                    }
             }
             //point to the next page
             nextPageToken = responseBody.nextPageToken

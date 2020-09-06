@@ -25,9 +25,11 @@ fun Application.module(testing: Boolean = false) {
         get("/playlist") {
             //get playlist id from url
             val id = call.request.queryParameters["id"]
+            val part = call.request.queryParameters["part"] ?: ""
+
             withContext(Dispatchers.Default) {
                 //return the result as json to user
-                call.respond(playlistItems(id))
+                call.respond(playlistItems(id, part))
             }
         }
 

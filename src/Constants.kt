@@ -4,3 +4,6 @@ const val GOOGLE_API_KEY = "YOUR-YOUTUBE-API-KEY"
 const val YOUTUBE = "https://www.youtube.com/"
 const val WATCH = "watch?v="
 const val YOUTUBE_W = YOUTUBE + WATCH
+
+const val VIDEO_ARG = "video"
+const val COMMENT_ARG = "comment"
