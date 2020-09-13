@@ -62,6 +62,9 @@ suspend fun playlistItems(playlistId: String?, part: String): List<Video> {
 
     return coroutineScope {
 
+        val startTime = System.currentTimeMillis()
+        log("coroutineScope: starting at ${System.currentTimeMillis() - startTime}")
+
         //initial values
         var nextPageToken: String? = ""
         var page = 0
@@ -69,34 +72,43 @@ suspend fun playlistItems(playlistId: String?, part: String): List<Video> {
         //retrieve items from youtube api
         while (nextPageToken != null) {     // while additional result are available, retrieve them
             //synchronous call
+            log("playlistItem request at ${System.currentTimeMillis() - startTime}")
             val responseBody = RetrofitBuilder.youtube.getPlaylistItems(playlistId!!, nextPageToken).body()!!
-            for ((index, item) in responseBody.items.withIndex()) {
-                log("id: ${item.id.subSequence(item.id.length - 5, item.id.length)}")
+            log("getting result from playlistItem at ${System.currentTimeMillis() - startTime}")
 
-                videos.add(Video(item.contentDetails.videoId))
-                val idx = page * 50 + index
+            val ids = responseBody.items.map {
+                videos.add(Video(it.contentDetails.videoId))
+                it.contentDetails.videoId
+            }
 
-                if (part.contains(VIDEO_ARG))
+            if (part.contains(VIDEO_ARG)) {
+                val currentPage = page
+                launch {
+                    RetrofitBuilder.youtube.getVideo(ids.joinToString(",")).body()!!.items
+                        .also { log("getting 50 video at ${System.currentTimeMillis() - startTime}") }
+                        .mapIndexed { index, item ->
+                            val idx = currentPage * 50 + index
+                            log("video #$idx at ${System.currentTimeMillis() - startTime}")
+                            videos[idx].title = item.snippet.title
+                            videos[idx].channelTitle = item.snippet.channelTitle
+                            videos[idx].duration = item.contentDetails.duration
+                            videos[idx].viewCount = item.statistics.viewCount
+                            videos[idx].likeCount = item.statistics.likeCount
+                            videos[idx].dislikeCount = item.statistics.dislikeCount
+                            videos[idx].favoriteCount = item.statistics.favoriteCount
+                            videos[idx].commentCount = item.statistics.commentCount
+                        }
+                }
+            }
+
+            if (part.contains(COMMENT_ARG)) {
+                val currentPage = page
+                ids.mapIndexed { index, id ->
                     launch {
-                        log("index: $index sending video request")
-                        val response =
-                            RetrofitBuilder.youtube.getVideo(item.contentDetails.videoId).body()!!.items.first()
-                        videos[idx].title = response.snippet.title
-                        videos[idx].channelTitle = response.snippet.channelTitle
-                        videos[idx].url = YOUTUBE_W + response.id
-                        videos[idx].duration = response.contentDetails.duration
-                        videos[idx].viewCount = response.statistics.viewCount
-                        videos[idx].likeCount = response.statistics.likeCount
-                        videos[idx].dislikeCount = response.statistics.dislikeCount
-                        videos[idx].favoriteCount = response.statistics.favoriteCount
-                        videos[idx].commentCount = response.statistics.commentCount
-                    }
-
-                if (part.contains(COMMENT_ARG))
-                    launch {
-                        log("index: $index sending comment request")
-                        val response = RetrofitBuilder.youtube.getComments(item.contentDetails.videoId).body()!!.items
-
+                        val idx = currentPage * 50 + index
+                        log("sending comment request for video #$idx at ${System.currentTimeMillis() - startTime}")
+                        val response = RetrofitBuilder.youtube.getComments(id).body()!!.items
+                        log("getting comment for video #$idx at ${System.currentTimeMillis() - startTime}")
                         val comments = mutableListOf<Comment>()
                         for (comment in response) {
                             comments.add(
@@ -111,7 +123,9 @@ suspend fun playlistItems(playlistId: String?, part: String): List<Video> {
                         }
                         videos[idx].topComment = comments
                     }
+                }
             }
+            log("point to the next page #$page at ${System.currentTimeMillis() - startTime}")
             //point to the next page
             nextPageToken = responseBody.nextPageToken
             page++
@@ -126,9 +140,10 @@ suspend fun playlistItems(playlistId: String?, part: String): List<Video> {
 data class Video(
     val id: String
 ) {
+    val url: String
+        get() = YOUTUBE_W + id
     lateinit var title: String
     lateinit var channelTitle: String
-    lateinit var url: String
     lateinit var duration: String
     lateinit var viewCount: String
     lateinit var likeCount: String
